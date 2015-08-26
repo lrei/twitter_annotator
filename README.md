@@ -11,6 +11,7 @@ Luis Rei <luis.rei@ijs.si> @lmrei
     pip install -r requirements.txt
     chmod +x annotator.py
     chmod +x sgd.py
+    tar -jxf senti_model.tar.bz2
     ```
 
 **NOTE**: you need to setup the models in the same directory.
