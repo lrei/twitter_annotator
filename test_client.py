@@ -1,8 +1,9 @@
+import sys
 import zmq
 import cPickle as pickle
 
 
-address = 'tcp://localhost:61284'
+address = 'tcp://localhost:'
 
 senti_messages = ['i hate everything because it sucks :(', 
                   'i love my iphone because apple is the best :)',
@@ -18,7 +19,7 @@ def test_annotator(socket):
             print(str(message))
 
 
-
+address = address + str(sys.argv[1])
 context = zmq.Context()
 socket = context.socket(zmq.REQ)
 socket.connect(address)
