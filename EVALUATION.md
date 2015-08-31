@@ -21,6 +21,12 @@ Tweets with both negative and positive emoticons were discarded.
 Tweets were filtered through langid.py.
 Some other filtering was done to remove potential bad examples.
 
+### Common Parameters
+    
+    * Tokenization by twokenizer
+    * Binary Counts
+    * Unigrams, Bigrams, Trigrams
+
 
 ### English
 #### Supervised Train Set
@@ -36,12 +42,6 @@ The test set is the Semeval 2014 test set retrieved on Aug 2015.
 Current results are from a subset of this that was undersampled to be balanced 
 consisting of 445 tweets per label.
 
-#### Common Parameters
-    
-    * Tokenization by twokenizer
-    * Binary Counts
-    * Unigrams, Bigrams, Trigrams
-
 #### Results Supervised
 
     1. NBSVM (alpha=1): accuracy = 0.640180, semeval f1 = 0.655447
@@ -55,4 +55,16 @@ consisting of 445 tweets per label.
     1. SGD: accuracy=0.554723, semeval f1=0.574630
     2. NBSVM: accuracy=0.535982, semeval f1=0.565074
     3. SVM: accuracy=0.530735, semeval f1=0.564097
+
+
+### Spanish
+
+#### Test  Set
+The test set is the xLiMe dataset for Spanish (26 Aug).
+The results are from a subset that was undersampled to be balanced consisting 
+of 198 tweets per label.
+
+#### Results - GENERATED Train Set
+
+    1. SGD: accuracy=0.551433, semeval_f1=0.630955, micro_f1=0.551433
 

@@ -41,7 +41,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.pipeline import Pipeline
 from sklearn.externals import joblib
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
 import twokenize
 
@@ -77,7 +77,8 @@ def semeval_senti_f1(pred, truth, pos=2, neg=0):
     return (f1_pos + f1_neg) / 2.0;
 
 
-def train(train_file, ngram=(1, 3), n_iter=200, n_jobs=3, verbose=False):
+def train(train_file, ngram=(1, 3), min_df=1, n_iter=200, n_jobs=3, 
+          verbose=False):
     if verbose:
         print('loading...')
 
@@ -89,6 +90,7 @@ def train(train_file, ngram=(1, 3), n_iter=200, n_jobs=3, verbose=False):
     params = {
         'vect__token_pattern': r"\S+",
         'vect__ngram_range': ngram, 
+        'vect__min_df': min_df, 
         'vect__binary': True,
         'sgd__n_iter': n_iter,
         'sgd__shuffle': True,
@@ -173,6 +175,7 @@ def run_zmp(clf, port, preprocess=False, verbose=False):
         message = socket.recv()
         # preprocess
         if preprocess:
+            message = twokenize.tokenize(message)
             message = twokenize.preprocess(message)
         # check for empty message
         if not message:
@@ -185,16 +188,20 @@ def run_zmp(clf, port, preprocess=False, verbose=False):
 
 def evaluate(clf, test_file, verbose=False):
     if verbose:
-        print('testing...')
+        print('evaluating...')
 
     test = pd.read_csv(test_file, delimiter='\t', encoding='utf-8', header=0,
                         names=['text', 'label'])
 
     pred = clf.predict(test['text'])
     acc = accuracy_score(test['label'], pred)
+    f1 = f1_score(test['label'], pred, average='micro',
+                  labels=[0, 1, 2])
     semeval_f1 = semeval_senti_f1(pred, test['label'])
     print('SGD:')
-    print('acc=%f, semeval_f1=%f' % (acc, semeval_f1))
+    print('\tacc=%f\n\tsemeval_f1=%f\n\tmicro_f1=%f\n' % (acc, semeval_f1, f1))
+    cm = confusion_matrix(test['label'], pred)
+    print(cm)
 
 
 def main():
@@ -223,17 +230,20 @@ def main():
     # training parameters
     parser.add_argument('--ngrams', default='1,3',
                         help='N-grams considered e.g. 1,3 is uni+bi+tri-grams')
+    parser.add_argument('--min_df', type=int, default=1,
+                        help='N-grams considered e.g. 1,3 is uni+bi+tri-grams')
     parser.add_argument('--n_iter', default=200, type=int, 
                         help='SGD iteratios')
 
     # common options
-    parser.add_argument('--n_jobs', type=int, default=0,
+    parser.add_argument('--n_jobs', type=int, default=-1,
                         help='number of cores to use in parallel')
     parser.add_argument('--verbose', action='store_true',
                         help='outputs status messages')
     
     # Parse
     args = parser.parse_args()
+    verbose = args.verbose
 
     clf = None
 
@@ -245,10 +255,12 @@ def main():
     # Train
     if args.train:
         ngram = tuple([int(x) for x in args.ngrams.split(',')])
-        clf = train(args.train, ngram=ngram, n_iter=args.n_iter, 
-                    n_jobs=args.n_jobs, verbose=args.verbose)
+        clf = train(args.train, ngram=ngram, min_df=args.min_df,
+                    n_iter=args.n_iter, n_jobs=args.n_jobs, verbose=verbose)
     # Load
     if args.load:
+        if verbose:
+            print('loading...')
         clf = load(args.load)
 
     # Save
@@ -263,7 +275,7 @@ def main():
         if clf is None:
             print('No model to evaluate')
         else:
-            evaluate(clf, args.eval, verbose=args.verbose)
+            evaluate(clf, args.eval, verbose=verbose)
 
     # Run
     if args.run:

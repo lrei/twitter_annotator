@@ -23,8 +23,7 @@ import zmq
 import multiprocessing
 import cPickle as pickle
 
-import twokenize
-import sgd
+import settings
 from gracefulinterrupthandler import GracefulInterruptHandler
 
 
@@ -70,15 +69,27 @@ def process_message(router, data):
     property = IDENTIFIER + 'tokenized'
     reply[property] = text
 
-    
+    #
     # 1 - Sentiment
+    #
     property = IDENTIFIER + 'sentiment'
     classifier = router[lang]['sentiment']
     model = router[lang]['sentiment_model']
 
-    reply[property] = classifier(model, text)
+    # Preprocess text for Sentiment
+    preprocessor = router[lang]['preprocessor']
+    text_pp = preprocessor(text)
 
-    # 2 - @TODO
+    # Sentiment classification
+    reply[property] = classifier(model, text_pp)
+
+    #
+    # 2 - PoS @TODO
+    #
+
+    #
+    # 3 - NeR @TODO
+    #
 
     # finally return:
     return reply
@@ -88,13 +99,7 @@ def worker_task(worker_id):
     """The multiprocess worker - the function that calls process_message()
     """
     # setup router
-    router = {
-            "en": {
-                "tokenizer": twokenize.preprocess,
-                "sentiment_model": sgd.load('senti_model/english'),
-                "sentiment": sgd.classify
-            }
-    }
+    router = settings.router
     # setup service
     socket = zmq.Context().socket(zmq.REQ)
     socket.identity = u"Worker-{}".format(worker_id).encode("ascii")

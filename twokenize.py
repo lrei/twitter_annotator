@@ -28,6 +28,8 @@ import sys
 import operator
 import re
 import HTMLParser
+import argparse
+from functools import partial
 
 def regex_or(*items):
     return '(?:' + '|'.join(items) + ')'
@@ -39,8 +41,12 @@ punctChars = r"['\"“”‘’.?!…,:;]"
 #punctSeq   = punctChars+"+"	#'anthem'. => ' anthem '.
 punctSeq   = r"['\"“”‘’]+|[.?!,…]+|[:;]+"	#'anthem'. => ' anthem ' .
 entity     = r"&(?:amp|lt|gt|quot);"
-#  URLs
 
+# don't it's a trap l'app - words separated by apostrophe
+ApWords = re.compile(ur"(\w+)('|\u2019)(\w+)", re.UNICODE)
+
+
+#  URLs
 
 # BTO 2012-06: everyone thinks the daringfireball regex should be better, but they're wrong.
 # If you actually empirically test it the results are bad.
@@ -293,8 +299,56 @@ def splitToken(token):
     return [token]
 
 # Assume 'text' has no HTML escaping.
-def tokenize(text):
+def tokenize1(text):
     return simpleTokenize(squeezeWhitespace(text))
+
+
+def tokenize2(text):
+    """Breaks apostrophes:
+        l'ammore -> ["l'", "ammore"]
+        """
+    tokens = simpleTokenize(squeezeWhitespace(text))
+    ntoks = []
+    for tok in tokens:
+        if '\'' in tok:
+            matching = ApWords.match(tok)
+            if matching is not None:
+                tok_list = list(matching.groups())
+                p1 = tok_list[0] + tok_list[1]  # "l'"
+                ntoks.extend([p1])
+                ntoks.extend(tok_list[2:])  # "ammore"
+        else:
+            ntoks.extend([tok])
+    return ntoks
+
+def tokenize(text, break_apostrophes=False):
+    """Returns tokenized text
+    Expects unicode or utf8 encoded text
+    Returns unicode string (the tokenized text seperated by space)
+    """
+    tokens = []
+    text = text.strip()
+
+    if not isinstance(text, unicode):
+        text = text.decode('utf8')
+    if not text:
+        return ''
+
+    text = text.replace(u'&amp;', u'&')
+
+    # tokenize
+    if break_apostrophes:
+        tokens = tokenize2(text)
+    else:
+        tokens = tokenize1(text)
+
+    text = u' '.join(tokens)
+
+    return text
+
+
+# Partial
+tokenize_apostrophes = partial(tokenize, break_apostrophes=True)
 
 
 # Twitter text comes HTML-escaped, so unescape it.
@@ -314,37 +368,65 @@ def tokenizeRawTweetText(text):
     return tokens
 
 
-def preprocess(line):
-    line = line.strip()
-    line = line.decode('utf8')
-    line = line.replace(u'&amp;', u'&')
-    tokens = tokenize(line)
-    text = u' '.join(tokens)
+def preprocess(tokenized_text):
+    """Returns unicode string
+    """
+    text = tokenized_text
+    if not text:
+        return text
+
+    if not isinstance(text, unicode):
+        text = text.decode('utf8')
+
     text = num_re.sub('tnumnum', text)
     text = url_re.sub('turlurl', text)
     text = mention_re.sub('tuseruser', text)
     text = hash_re.sub(r' # \2', text)
-    text = text.lower().encode('utf8')
+    text = text.lower()
     text = text.strip()
+
     return text  
 
-if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print('twokenize input_file output_file')
-        sys.exit(0)
 
-    ignore = False
-    if len(sys.argv) == 4:
-        if sys.argv[3] == 'ignore':
-            ignore = True
+def main():
+    parser = argparse.ArgumentParser(description='Run tokenizer (twokenize).')
+    parser.add_argument('input_file', help='the input file')
+    parser.add_argument('output_file', help='the output file')
 
-    with open(sys.argv[2], 'w') as outfile:
-        for line in open(sys.argv[1]):
-            text = preprocess(line)
+    """@TODO
+    parser.add_argument('--tsv', action='store_true', default=False,
+                        help='input and output are TSV files not text')
+    """
+    parser.add_argument('--preprocess', action='store_true', default=True,
+                        help='preprocess text')
+    parser.add_argument('--apostrophes', action='store_true',
+                        default=False, help="don't becomes d' ont")
+    parser.add_argument('--ignore', action='store_true',
+                        default=False, help='ignores if in/out text is empty')
+
+    # Parse
+    args = parser.parse_args()
+    infile = args.input_file
+    outfile = args.output_file
+    ignore = args.ignore
+
+
+    with open(infile) as fin, open(outfile, 'w') as fout:
+        for line in fin:
+            text = tokenize(line, args.apostrophes)
+            if args.preprocess:
+                text = preprocess(text)
+
             if not text and not ignore:
                 print('Empty line in result')
                 print(line)
                 sys.exit(1)
+
             elif not text and ignore:
                 continue
-            outfile.write(text+'\n')
+
+            text = text.encode('utf8')
+            fout.write(text + '\n')
+
+if __name__ == '__main__':
+    main()
