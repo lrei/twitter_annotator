@@ -5,16 +5,22 @@ Luis Rei <luis.rei@ijs.si> @lmrei
 
 ## Install
 
-    ```
+```
     git clone git@github.com:lrei/twitter_annotator.git
     cd twitter_annotator
     pip install -r requirements.txt
     chmod +x annotator.py
     chmod +x sgd.py
-    tar -jxf senti_model.tar.bz2
-    ```
+```
 
 **NOTE**: you need to setup the models in the same directory.
+
+The models are available for download [here](https://mega.nz/#!ewsFUboK!Lo4b6FYtP2TY7iuMrZRn1MBTl5Sw43SEZqIN7SmU5Aw)
+
+To extract:
+```
+    tar -jxf senti_model.tar.bz2
+```
 
 ## Components
 
