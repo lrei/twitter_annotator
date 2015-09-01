@@ -34,6 +34,18 @@ from functools import partial
 def regex_or(*items):
     return '(?:' + '|'.join(items) + ')'
 
+all_emoji = open('emoji-data.txt').readlines()
+all_emoji = [x.strip() for x in all_emoji if not x.strip().startswith('#')]
+all_emoji = [x.split(';')[0].strip() for x in all_emoji]
+all_emoji_1 = [unichr(int(x, 16)) for x in all_emoji if len(x.split()) == 1]
+all_emoji_2 = [x.split() for x in all_emoji if len(x.split()) == 2]
+all_emoji_2 = [unichr(int(x[0].strip(), 16)) + unichr(int(x[1].strip(), 16))
+               for x in all_emoji_2]
+all_emoji = all_emoji_1 + all_emoji_2
+all_emoji = [re.escape(x) for x in all_emoji]
+all_emoji_str = u'(' + ur'|'.join(all_emoji) + u')'
+re_emoji = re.compile(all_emoji_str, re.UNICODE)
+
 Contractions = re.compile(u"(?i)(\w+)(n['’′]t|['’′]ve|['’′]ll|['’′]d|['’′]re|['’′]s|['’′]m)$", re.UNICODE)
 Whitespace = re.compile(u"[\s\u0020\u00a0\u1680\u180e\u202f\u205f\u3000\u2000-\u200a]+", re.UNICODE)
 
@@ -277,6 +289,13 @@ def simpleTokenize(text):
     #for tok in zippedStr:
     #    splitStr.extend(splitToken(tok))
     #zippedStr = splitStr
+
+    # fix emoji tokenization
+    splitStr = []
+    for tok in zippedStr:
+        splitStr.extend(re_emoji.split(tok))
+    zippedStr = splitStr
+    zippedStr = u' '.join(splitStr).split()
     
     return zippedStr
 
