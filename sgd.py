@@ -42,10 +42,16 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.pipeline import Pipeline
 from sklearn.externals import joblib
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
+from sklearn.grid_search import GridSearchCV
+import nltk
+from nltk.corpus import stopwords
+from collections import Counter
+from sklearn.metrics import make_scorer
 
 import twokenize
 
 default_class = 1
+
 
 def f1_class(pred, truth, class_val):
     n = len(truth)
@@ -70,7 +76,7 @@ def f1_class(pred, truth, class_val):
     return (2.0 * precision * recall) / (precision + recall)
 
 
-def semeval_senti_f1(pred, truth, pos=2, neg=0): 
+def semeval_senti_f1(pred, truth, pos='POSITIVE', neg='NEGATIVE'):
     f1_pos = f1_class(pred, truth, pos)
     f1_neg = f1_class(pred, truth, neg)
 
@@ -104,6 +110,59 @@ def train(train_file, ngram=(1, 3), min_df=1, n_iter=200, n_jobs=3,
     clf.fit(train['text'], train['label'])
 
     return clf
+
+
+def tune(train_file, n_iter, n_jobs, verbose, _save, class_weight, stop_words):
+    if verbose:
+        print('loading...')
+
+    _tune = pd.read_csv(train_file, delimiter='\t', encoding='utf-8', header=0,
+                        names=['text', 'label'])
+
+    # create pipeline
+    if stop_words:
+        pipeline = Pipeline([('vect', CountVectorizer(stop_words=stop_words)),
+                             ('sgd', SGDClassifier())])
+    else:
+        pipeline = Pipeline([('vect', CountVectorizer()),
+                             ('sgd', SGDClassifier())])
+    params = {
+        'vect__token_pattern': [r"\S+"],
+        'vect__ngram_range': [(1, 2), (1, 3), (2, 3), (1, 4)],
+        'vect__min_df': [1, 10, 50, 100],
+        'vect__max_df': [1.0, 0.9, 0.8, 0.6],
+        'vect__binary': [True],
+        'sgd__shuffle': [True],
+        'sgd__class_weight': [class_weight]
+    }
+
+    verbose_gv = 0
+    if verbose:
+        verbose_gv = 3
+
+    scorer_f1 = make_scorer(f1_score, greater_is_better=True)
+
+    grid_search = GridSearchCV(pipeline, params, n_jobs=n_jobs,
+                               verbose=verbose_gv, scoring=scorer_f1)
+
+    count = Counter()
+    count.update(_tune.label)
+    print('num of labels:')
+    print(count)
+
+    if verbose:
+        print('fitting...')
+
+    Y = np.asarray(_tune['label'], dtype="|S6")
+    grid_search.fit(_tune['text'], Y)
+
+    #if not _save:
+    print("Best parameters set:")
+    best_parameters = grid_search.best_estimator_.get_params()
+    for param_name in sorted(params.keys()):
+        print("\t%s: %r" % (param_name, best_parameters[param_name]))
+
+    return grid_search.best_estimator_
 
 
 def save(clf, save_path):
@@ -185,7 +244,6 @@ def run_zmp(clf, port, preprocess=False, verbose=False):
             socket.send(str(clf.predict([message])[0]))
 
 
-
 def evaluate(clf, test_file, verbose=False):
     if verbose:
         print('evaluating...')
@@ -210,6 +268,10 @@ def main():
     parser.add_argument('--train', help='path of the train tsv')
     parser.add_argument('--save', help='save this model to path')
     parser.add_argument('--load', help='path of the model to load')
+    # tune
+    parser.add_argument('--tune', action='store_true', help='path of the dev '
+                                                            'tsv')
+    parser.add_argument('--language')
 
     # eval, classify file, run, zmq run
     parser.add_argument('--eval', help='path of the test tsv')
@@ -234,6 +296,8 @@ def main():
                         help='N-grams considered e.g. 1,3 is uni+bi+tri-grams')
     parser.add_argument('--n_iter', default=200, type=int, 
                         help='SGD iteratios')
+    parser.add_argument('--no-auto', action='store_true',
+                        default=False)
 
     # common options
     parser.add_argument('--n_jobs', type=int, default=-1,
@@ -247,16 +311,44 @@ def main():
 
     clf = None
 
-    if not args.train and not args.load:
+    if not args.train and not args.load and not args.tune:
         print('No model loaded')
         parser.print_help()
         sys.exit(1)
 
+    # Language
+    stop_words = None
+    if args.language:
+        try:
+            stop_words = stopwords.words(args.language)
+        except:
+            nltk.download()
+            try:
+                stop_words = stopwords.words(args.language)
+            except Exception as e:
+                print(str(e))
+                sys.exit()
+
     # Train
-    if args.train:
+    if args.train and not args.tune:
         ngram = tuple([int(x) for x in args.ngrams.split(',')])
         clf = train(args.train, ngram=ngram, min_df=args.min_df,
                     n_iter=args.n_iter, n_jobs=args.n_jobs, verbose=verbose)
+
+    # Tune
+    if args.tune and not args.train:
+        print('No train file.')
+        sys.exit(1)
+
+    if args.tune:
+        weight = 'auto'
+        if args.no_auto:
+            weight = None
+
+        clf = tune(args.train, n_iter=args.n_iter, n_jobs=args.n_jobs,
+                   verbose=verbose, _save=args.save, class_weight=weight,
+                   stop_words=stop_words)
+
     # Load
     if args.load:
         if verbose:
