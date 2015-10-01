@@ -112,7 +112,7 @@ def train(train_file, ngram=(1, 3), min_df=1, n_iter=200, n_jobs=3,
     return clf
 
 
-def tune(train_file, n_iter, n_jobs, verbose, _save, class_weight, stop_words):
+def tune(train_file, n_jobs, verbose, class_weight, stop_words):
     if verbose:
         print('loading...')
 
@@ -141,7 +141,7 @@ def tune(train_file, n_iter, n_jobs, verbose, _save, class_weight, stop_words):
         verbose_gv = 3
 
     scorer_f1 = make_scorer(f1_score, greater_is_better=True)
-
+    print('njobs: %d' % n_jobs)
     grid_search = GridSearchCV(pipeline, params, n_jobs=n_jobs,
                                verbose=verbose_gv, scoring=scorer_f1)
 
@@ -156,7 +156,6 @@ def tune(train_file, n_iter, n_jobs, verbose, _save, class_weight, stop_words):
     Y = np.asarray(_tune['label'], dtype="|S6")
     grid_search.fit(_tune['text'], Y)
 
-    #if not _save:
     print("Best parameters set:")
     best_parameters = grid_search.best_estimator_.get_params()
     for param_name in sorted(params.keys()):
@@ -345,8 +344,8 @@ def main():
         if args.no_auto:
             weight = None
 
-        clf = tune(args.train, n_iter=args.n_iter, n_jobs=args.n_jobs,
-                   verbose=verbose, _save=args.save, class_weight=weight,
+        clf = tune(args.train, n_jobs=args.n_jobs,
+                   verbose=verbose, class_weight=weight,
                    stop_words=stop_words)
 
     # Load
