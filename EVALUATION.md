@@ -58,13 +58,52 @@ consisting of 445 tweets per label.
 
 
 ### Spanish
+Stopwords removed
+
+#### Supervised Train Set
+TASS 2015 Train Set: {'POSITIVE': 2877, 'NEGATIVE': 2178, 'NEUTRAL': 667}
+
+
+#### Generated Train Set
+100,000 examples per label
 
 #### Test  Set
-The test set is the xLiMe dataset for Spanish (26 Aug).
+The test set is the xLiMe dataset for Spanish.
 The results are from a subset that was undersampled to be balanced consisting 
-of 198 tweets per label.
+of 195 tweets per label.
+
+#### Results - TASS Train Set
+
+ 1. SGD: accuracy=0.423932, semeval_f1==0.484463, micro_f1=0.423932
 
 #### Results - GENERATED Train Set
 
-    1. SGD: accuracy=0.551433, semeval_f1=0.630955, micro_f1=0.551433
+    1. SGD: accuracy=0.55, semeval_f1=0.63, micro_f1=0.54
 
+### German
+
+#### Generated Train Set
+100,000 examples per label.
+
+#### Test Set
+The test set is the xLiMe dataset for German.
+The results are from a subset that was undersampled to be balanced consisting 
+of 142 tweets per label.
+
+#### Results - GENERATED Train Set
+
+ 1. SGD: accuracy=0.51, semeval_f1=0.61, micro_f1=0.51
+
+### Italian
+
+#### Generated Train Set
+100,000 examples per label.
+
+#### Test Set
+The test set is the xLiMe dataset for German.
+The results are from a subset that was undersampled to be balanced consisting 
+of 521 tweets per label.
+
+#### Results - GENERATED Train Set
+
+ 1. SGD: accuracy=0.45, semeval_f1=0.54, micro_f1=045.

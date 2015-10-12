@@ -17,9 +17,9 @@ Current home is http://github.com/brendano/ark-tweet-nlp and http://www.ark.cs.c
 
 There have been at least 2 other Java ports, but they are not in the lineage for the code here.
 
-Ported to Python by Myle Ott <myleott@gmail.com>.
+(5) Ported to Python by Myle Ott <myleott@gmail.com>.
 
-Some hacks by Luis Rei <luis.rei@ijs.si> for adaptation to a specific pipeline
+(6) Some hacks by Luis Rei <luis.rei@ijs.si> for adaptation to a specific pipeline
 """
 
 from __future__ import print_function
@@ -412,10 +412,8 @@ def main():
     parser.add_argument('input_file', help='the input file')
     parser.add_argument('output_file', help='the output file')
 
-    """@TODO
     parser.add_argument('--tsv', action='store_true', default=False,
                         help='input and output are TSV files not text')
-    """
     parser.add_argument('--preprocess', action='store_true', default=True,
                         help='preprocess text')
     parser.add_argument('--apostrophes', action='store_true',
@@ -432,6 +430,12 @@ def main():
 
     with open(infile) as fin, open(outfile, 'w') as fout:
         for line in fin:
+            if args.tsv:
+                line = line.decode('utf8')
+                fields = line.split(u'\t')
+                line = fields[0]
+                others = u'\t'.join(fields[1:]).strip().encode('utf8')
+
             text = tokenize(line, args.apostrophes)
             if args.preprocess:
                 text = preprocess(text)
@@ -445,7 +449,10 @@ def main():
                 continue
 
             text = text.encode('utf8')
-            fout.write(text + '\n')
+            if args.tsv:
+                fout.write(text + '\t' + others + '\n')
+            else:
+                fout.write(text + '\n')
 
 if __name__ == '__main__':
     main()

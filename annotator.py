@@ -16,7 +16,6 @@ Brandon Carpenter (hashstat) <brandon(dot)carpenter(at)pnnl(dot)gov>
 http://zguide.zeromq.org/py:lbbroker
 """
 
-import sys
 import os
 import argparse
 import zmq
@@ -43,23 +42,23 @@ def process_message(router, data):
 
     # message must have a lang attribute
     if 'lang' not in data:
-        return msg
+        return reply
 
     lang = data['lang']
 
     # check if we are setup to handle this language
     if lang not in router:
-        return msg
+        return reply
 
     # check if message has a text property
     if 'text' not in data:
-        return msg
+        return reply
 
     text = data['text'].strip()
 
     # check that text field is not empty
     if not text:
-        return msg
+        return reply
 
     #
     # Pipeline begins
@@ -110,7 +109,7 @@ def worker_task(worker_id):
 
     # start working (pun intended)
     while True:
-        address, empty, msg = socket.recv_multipart()
+        address, _, msg = socket.recv_multipart()
         err_property = IDENTIFIER + 'error'
         reply = {err_property: 'none'}
 
@@ -120,13 +119,12 @@ def worker_task(worker_id):
         except Exception as e:
             reply = {err_property: str(e)}
 
-
         reply = pickle.dumps(reply)
         socket.send_multipart([address, b"", reply])
 
 
 def load_balancer(port=DEFAULT_PORT, n_workers=DEFAULT_NUM_WORKERS):
-    """Load balancer: Starts the workers (in different processes) and 
+    """Load balancer: Starts the workers (in different processes) and
     balances the work it receives from a client between the different worker
     processes.
     """
@@ -151,7 +149,6 @@ def load_balancer(port=DEFAULT_PORT, n_workers=DEFAULT_NUM_WORKERS):
         start(worker_task, i)
 
     # Initialize main loop state
-    count = 0
     workers = []
     poller = zmq.Poller()
 
@@ -166,7 +163,7 @@ def load_balancer(port=DEFAULT_PORT, n_workers=DEFAULT_NUM_WORKERS):
             #
             if backend in sockets:
                 request = backend.recv_multipart()
-                worker, empty, client = request[:3]
+                worker, _, client = request[:3]
 
                 if not workers:
                     # Client polling was suspended - unsuspend it:
@@ -177,13 +174,13 @@ def load_balancer(port=DEFAULT_PORT, n_workers=DEFAULT_NUM_WORKERS):
                 workers.append(worker)
                 if client != b"READY" and len(request) > 3:
                     # If client reply, send rest back to frontend
-                    empty, reply = request[3:]
+                    _, reply = request[3:]
                     frontend.send_multipart([client, b"", reply])
             #
             # Get next client request, route to last-used worker
             #
             if frontend in sockets:
-                client, empty, request = frontend.recv_multipart()
+                client, _, request = frontend.recv_multipart()
                 worker = workers.pop(0)
                 backend.send_multipart([worker, b"", client, b"", request])
                 if not workers:
@@ -199,7 +196,7 @@ def load_balancer(port=DEFAULT_PORT, n_workers=DEFAULT_NUM_WORKERS):
     frontend.close()
     context.term()
 
-    
+
 def main():
     parser = argparse.ArgumentParser(description='Run SGD.')
     parser.add_argument('--port', type=int, default=DEFAULT_PORT,
