@@ -21,7 +21,7 @@ Where test.txt is line-delimited text
 
     ```
     clf = sgd.load('model_file')
-    sgd.classify(clf, text, preprocess=True)
+    sgd.classify(clf, text, preprocess=twokenize.preprocess)
     ```
 
 ### Train
@@ -245,11 +245,11 @@ def run(clf, preprocess=False):
             print(clf.predict([line.strip()])[0])
 
 
-def classify(clf, tweet, preprocess=False):
+def classify(clf, tweet, preprocess=None):
     '''Classify a single tweet/line/sentence
     '''
     if preprocess:
-        tweet = twokenize.preprocess(tweet)
+        tweet = preprocess(tweet)
     else:
         tweet = tweet.strip()
 

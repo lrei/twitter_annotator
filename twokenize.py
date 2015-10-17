@@ -25,21 +25,34 @@ There have been at least 2 other Java ports, but they are not in the lineage for
 from __future__ import print_function
 
 import sys
+import os
+import inspect
+import struct
 import operator
 import re
 import HTMLParser
 import argparse
 from functools import partial
 
+
 def regex_or(*items):
     return '(?:' + '|'.join(items) + ')'
 
-all_emoji = open('emoji-data.txt').readlines()
+
+def unichar(i):
+    try:
+        return unichr(i)
+    except ValueError:
+        return struct.pack('i', i).decode('utf-32')
+
+
+p = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+all_emoji = open(os.path.join(p, 'emoji-data.txt')).readlines()
 all_emoji = [x.strip() for x in all_emoji if not x.strip().startswith('#')]
 all_emoji = [x.split(';')[0].strip() for x in all_emoji]
-all_emoji_1 = [unichr(int(x, 16)) for x in all_emoji if len(x.split()) == 1]
+all_emoji_1 = [unichar(int(x, 16)) for x in all_emoji if len(x.split()) == 1]
 all_emoji_2 = [x.split() for x in all_emoji if len(x.split()) == 2]
-all_emoji_2 = [unichr(int(x[0].strip(), 16)) + unichr(int(x[1].strip(), 16))
+all_emoji_2 = [unichar(int(x[0].strip(), 16)) + unichar(int(x[1].strip(), 16))
                for x in all_emoji_2]
 all_emoji = all_emoji_1 + all_emoji_2
 all_emoji = [re.escape(x) for x in all_emoji]
