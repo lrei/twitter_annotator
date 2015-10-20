@@ -15,7 +15,7 @@ Luis Rei <luis.rei@ijs.si> @lmrei
 
 **NOTE**: you need to setup the models in the same directory.
 
-The models are available for download [here](https://mega.nz/#!3kUmFLwS!yGleuGF1qqhp3-2Dtv3G7bGJPz_WxwdBI2_ca7R5wzg)
+The models are available for download [here](https://mega.nz/#!6hMSXTYK!MXPDDiD0f9mNvZzwAtgFBWKeFh-oIfhKD5_Q4RLpoNg)
 
 To extract:
 ```
