@@ -65,6 +65,7 @@ def process_message(router, data):
     #
     tokenizer = router[lang]['tokenizer']
     text = tokenizer(text)
+    tokens = text.split()
     property = IDENTIFIER + 'tokenized'
     reply[property] = text
 
@@ -83,12 +84,25 @@ def process_message(router, data):
     reply[property] = classifier(model, text_pp)
 
     #
-    # 2 - PoS @TODO
+    # 2 - PoS
     #
+    property = IDENTIFIER + 'pos'
+
+    pos_model = router[lang]['pos_model']
+    pos_tag = router[lang]['pos']
+
+    reply[property] = pos_tag(pos_model, tokens)
 
     #
-    # 3 - NeR @TODO
+    # 3 - NER
     #
+    property = IDENTIFIER + 'ne'
+
+    ner_model = router[lang]['ner_model']
+    ner = router[lang]['ner']
+
+    reply[property] = ner(ner_model, tokens)
+
 
     # finally return:
     return reply
@@ -203,7 +217,7 @@ def main():
                         help='read/write to zmq socket at specified port')
 
     # common options
-    parser.add_argument('--n_jobs', type=int, default=DEFAULT_NUM_WORKERS,
+    parser.add_argument('--n-jobs', type=int, default=DEFAULT_NUM_WORKERS,
                         help='number of cores to use in parallel')
     # Parse
     args = parser.parse_args()
