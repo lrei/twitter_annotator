@@ -13,17 +13,102 @@ Luis Rei <luis.rei@ijs.si> @lmrei
     chmod +x sgd.py
 ```
 
-**NOTE**: you need to setup the models in the same directory.
+### External Dependencies
+**NOTE**: you need to setup the models in the same directory (or change
+settings).
 
-The models are available for download [here](https://mega.nz/#!6hMSXTYK!MXPDDiD0f9mNvZzwAtgFBWKeFh-oIfhKD5_Q4RLpoNg)
+#### Normalization
+
+```
+python -c "import nltk; nltk.download('stopwords')"
+```
+
+#### NER
+NER requires Java 8 and [Stanford NER](http://nlp.stanford.edu/software/CRF-NER.shtml)
+as well as models for each language.
+
+
+#### POS
+POS requires Java 8 and [Stanford POS Tagger](http://nlp.stanford.edu/software/tagger.shtml)
+as well as models for each language.
+
+```
+python -c "import nltk; nltk.download('universal_tagset')"
+```
+
+#### Sentiment
+The models for sentiment are available for download [here](https://mega.nz/#!6hMSXTYK!MXPDDiD0f9mNvZzwAtgFBWKeFh-oIfhKD5_Q4RLpoNg)
 
 To extract:
 ```
     tar -jxf senti_model.tar.bz2
 ```
 
-## Components
+#### An example Tree:
+```
+.
+├── annotator.py
+├── EVALUATION.md
+├── external
+│   ├── stanfordner
+│   │   ├── build.xml
+│   │   ├── lib
+│   │   │   ├── joda-time.jar
+│   │   │   ├── jollyday-0.4.7.jar
+│   │   │   └── stanford-ner-resources.jar
+│   │   ├── stanford-ner-3.5.2.jar
+│   │   └── stanford-ner.jar
+│   └── stanfordpos
+│       ├── data
+│       │   └── enclitic-inflections.data
+│       ├── README.txt
+│       ├── stanford-postagger-3.5.2.jar
+│       ├── stanford-postagger.jar
+├── gracefulinterrupthandler.py
+├── __init__.py
+├── LICENSE
+├── ner_models
+│   ├── english.conll.4class.distsim.crf.ser.gz
+│   ├── german.hgc_175m_600.crf.ser.gz
+│   └── spanish.ancora.distsim.s512.crf.ser.gz
+├── normalize.py
+├── pos_models
+│   ├── english-bidirectional-distsim.tagger
+│   ├── german-hgc.tagger
+│   └── spanish-distsim.tagger
+├── README.md
+├── requirements.txt
+├── senti_models
+│   ├── english
+│   ├── english_01.npy
+│   ├── english_02.npy
+│   ├── english_03.npy
+│   ├── english_04.npy
+│   ├── german
+│   ├── german_01.npy
+│   ├── german_02.npy
+│   ├── german_03.npy
+│   ├── german_04.npy
+│   ├── german_04 (shogun's conflicted copy 2015-11-09).npy
+│   ├── italian
+│   ├── italian_01.npy
+│   ├── italian_02.npy
+│   ├── italian_03.npy
+│   ├── italian_04.npy
+│   ├── spanish
+│   ├── spanish_01.npy
+│   ├── spanish_02.npy
+│   ├── spanish_03.npy
+│   ├── spanish_04.npy
+├── seq.py
+├── settings.py
+├── sgd.py
+├── test_client.py
+├── twokenize.py
+├── undersampler.py
+```
 
+## Components
 ### Twitter Annotator (main service)
 
 #### Running the Service
