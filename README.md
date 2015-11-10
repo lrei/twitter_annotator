@@ -1,6 +1,27 @@
 # Twitter Annotation Service
 
-Luis Rei <luis.rei@ijs.si> @lmrei
+Luis Rei 
+<luis.rei@ijs.si> 
+@lmrei
+
+
+## Prelude
+
+### Notice, License
+Notice: This will likely be updated soon.
+
+For the Licecnse see LICENSE.md (MIT).
+External tools are under their own licenses (obviously).
+
+### Project, Evaluation and Corpora
+Twitter Annotator was built for the [xLiMe project](http://xlime.org/).
+
+The sentiment classifier built and trained for [SYMPHONY](http://projectsymphony.eu/).
+
+For Project evaluation metrics see the EVALUATION.md file.
+
+List of Corpora
+The [xLiMe Twitter Corpus](https://github.com/lrei/xlime_twitter_corpus).
 
 
 ## Install
