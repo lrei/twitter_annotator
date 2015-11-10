@@ -21,8 +21,14 @@ The sentiment classifier built and trained for [SYMPHONY](http://projectsymphony
 
 For Project evaluation metrics see the EVALUATION.md file.
 
-List of Corpora
-The [xLiMe Twitter Corpus](https://github.com/lrei/xlime_twitter_corpus).
+
+#### List of Corpora:
+
+    * The [xLiMe Twitter Corpus](https://github.com/lrei/xlime_twitter_corpus).
+    * [Ritter Twitter Corpus](https://github.com/aritter/twitter_nlp)
+    * [SemEval 2014 Task 9](http://alt.qcri.org/semeval2014/task9/)
+    * [TASS 2015](http://www.sngularmeaning.team/TASS2015/tass2015.php)
+
 
 
 ## Install
