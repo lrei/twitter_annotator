@@ -11,7 +11,8 @@ Luis Rei
 Notice: This will likely be updated soon.
 
 For the Licecnse see LICENSE.md (MIT).
-External tools are under their own licenses (obviously).
+External tools are under their own licenses (obviously) and are not distributed
+here.
 
 ### Project, Evaluation and Corpora
 Twitter Annotator was built for the [xLiMe project](http://xlime.org/).
@@ -46,12 +47,12 @@ python -c "import nltk; nltk.download('stopwords')"
 
 #### NER
 NER requires Java 8 and [Stanford NER](http://nlp.stanford.edu/software/CRF-NER.shtml)
-as well as models for each language.
+as well as models for each language. See the tree section below.
 
 
 #### POS
 POS requires Java 8 and [Stanford POS Tagger](http://nlp.stanford.edu/software/tagger.shtml)
-as well as models for each language.
+as well as models for each language. See the tree section below.
 
 ```
 python -c "import nltk; nltk.download('universal_tagset')"
@@ -66,13 +67,13 @@ To extract:
 ```
 
 #### An example Tree:
+
 ```
 .
 ├── annotator.py
 ├── EVALUATION.md
 ├── external
 │   ├── stanfordner
-│   │   ├── build.xml
 │   │   ├── lib
 │   │   │   ├── joda-time.jar
 │   │   │   ├── jollyday-0.4.7.jar
@@ -82,7 +83,6 @@ To extract:
 │   └── stanfordpos
 │       ├── data
 │       │   └── enclitic-inflections.data
-│       ├── README.txt
 │       ├── stanford-postagger-3.5.2.jar
 │       ├── stanford-postagger.jar
 ├── gracefulinterrupthandler.py
