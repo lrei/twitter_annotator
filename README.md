@@ -48,6 +48,7 @@ python -c "import nltk; nltk.download('stopwords')"
 #### NER
 NER requires Java 8 and [Stanford NER](http://nlp.stanford.edu/software/CRF-NER.shtml)
 as well as models for each language. See the tree section below.
+Unzip models and tool to their respective directories.
 
 
 #### POS
@@ -57,6 +58,8 @@ as well as models for each language. See the tree section below.
 ```
 python -c "import nltk; nltk.download('universal_tagset')"
 ```
+
+Unzip models and tool to their respective directories.
 
 #### Sentiment
 The models for sentiment are available for download [here](https://mega.nz/#!6hMSXTYK!MXPDDiD0f9mNvZzwAtgFBWKeFh-oIfhKD5_Q4RLpoNg)
@@ -110,7 +113,6 @@ To extract:
 │   ├── german_02.npy
 │   ├── german_03.npy
 │   ├── german_04.npy
-│   ├── german_04 (shogun's conflicted copy 2015-11-09).npy
 │   ├── italian
 │   ├── italian_01.npy
 │   ├── italian_02.npy
