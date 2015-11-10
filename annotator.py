@@ -21,22 +21,26 @@ import argparse
 import zmq
 import multiprocessing
 import cPickle as pickle
+from nltk.util import ngrams
 
 import settings
 from gracefulinterrupthandler import GracefulInterruptHandler
 
 
-IDENTIFIER = 'jsi_xlime_'
-BACKEND_ADDRESS = 'ipc://annotbackend.ipc'
-DEFAULT_PORT = 1984
-DEFAULT_NUM_WORKERS = 4
+IDENTIFIER = settings.IDENTIFIER
+BACKEND_ADDRESS = settings.BACKEND_ADDRESS
+DEFAULT_PORT = settings.DEFAULT_PORT
+DEFAULT_NUM_WORKERS = settings.DEFAULT_NUM_WORKERS
+router = settings.get_models()
 
 
-def process_message(router, data):
+def process_message(models, data):
     """This is the function that actually processes the data
-        0 - Language Routing
+    Routes data to the appropriate function for each annotation
+        0 - Tokenize, Preprocess, Normalize, Ngrams
         1 - Sentiment
-        2 - TODO
+        2 - POS
+        3 - NER
     """
     reply = data
 
@@ -45,12 +49,13 @@ def process_message(router, data):
         return reply
 
     lang = data['lang']
+    models = router[lang]
 
     # check if we are setup to handle this language
     if lang not in router:
         return reply
 
-    # check if message has a text property
+     # check if message has a text property
     if 'text' not in data:
         return reply
 
@@ -63,24 +68,41 @@ def process_message(router, data):
     #
     # Pipeline begins
     #
-    tokenizer = router[lang]['tokenizer']
+    property = IDENTIFIER + 'tokenized'
+    tokenizer = models['tokenizer']
+
     text = tokenizer(text)
     tokens = text.split()
-    property = IDENTIFIER + 'tokenized'
+
     reply[property] = text
+
+    #
+    # 0 - Preprocess text, generate ngrams
+    # 
+    preprocessor = models['preprocessor']
+    text_pp = preprocessor(text)  # this is passed on to the sentiment classif
+
+    # text is normalized 
+    property = IDENTIFIER + 'norm'
+
+    model = models['normalize_model']
+    normalizer = models['normalize']
+
+    text_norm = normalizer(model, text)
+    reply[property] = text_norm
+
+    # then ngrams are generated
+    property = IDENTIFIER + 'ngrams'
+    reply[property] = list(ngrams(text_norm.split(), settings.N))
 
     #
     # 1 - Sentiment
     #
     property = IDENTIFIER + 'sentiment'
-    classifier = router[lang]['sentiment']
-    model = router[lang]['sentiment_model']
 
-    # Preprocess text for Sentiment
-    preprocessor = router[lang]['preprocessor']
-    text_pp = preprocessor(text)
+    classifier = models['sentiment']
+    model = models['sentiment_model']
 
-    # Sentiment classification
     reply[property] = classifier(model, text_pp)
 
     #
@@ -88,8 +110,8 @@ def process_message(router, data):
     #
     property = IDENTIFIER + 'pos'
 
-    pos_model = router[lang]['pos_model']
-    pos_tag = router[lang]['pos']
+    pos_model = models['pos_model']
+    pos_tag = models['pos']
 
     reply[property] = pos_tag(pos_model, tokens)
 
@@ -98,8 +120,8 @@ def process_message(router, data):
     #
     property = IDENTIFIER + 'ne'
 
-    ner_model = router[lang]['ner_model']
-    ner = router[lang]['ner']
+    ner_model = models['ner_model']
+    ner = models['ner']
 
     reply[property] = ner(ner_model, tokens)
 
@@ -111,8 +133,6 @@ def process_message(router, data):
 def worker_task(worker_id):
     """The multiprocess worker - the function that calls process_message()
     """
-    # setup router
-    router = settings.router
     # setup service
     socket = zmq.Context().socket(zmq.REQ)
     socket.identity = u"Worker-{}".format(worker_id).encode("ascii")
@@ -212,7 +232,7 @@ def load_balancer(port=DEFAULT_PORT, n_workers=DEFAULT_NUM_WORKERS):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Run SGD.')
+    parser = argparse.ArgumentParser(description='Run Annotator.')
     parser.add_argument('--port', type=int, default=DEFAULT_PORT,
                         help='read/write to zmq socket at specified port')
 

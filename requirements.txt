@@ -2,3 +2,4 @@ scikit-learn==0.16.1
 pyzmq==14.0.1
 pandas==0.16.2
 nltk==3.0.2
+Unidecode==0.4.18
