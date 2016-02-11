@@ -1,42 +1,29 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-# xLiMe Twitter Annotator
-Luis Rei <luis.rei@ijs.si> @lmrei
-26 Aug 2015
-
-
-To terminate:
-
-    kill -s INT <pid>
-
-
-ZMQ Load Balancer/Worker based on example by
-Brandon Carpenter (hashstat) <brandon(dot)carpenter(at)pnnl(dot)gov>
-http://zguide.zeromq.org/py:lbbroker
+xLiMe Annotator
+Luis Rei <luis.rei@ijs.si> @lmrei http://luisrei.com
 """
 
 import os
 import argparse
-import zmq
 import multiprocessing
+import logging
 import cPickle as pickle
+import zmq
+from functools import partial
 from nltk.util import ngrams
 
-import settings
-from gracefulinterrupthandler import GracefulInterruptHandler
+import twokenize
+import normalize
+import sgd
+import seq
 
 
-IDENTIFIER = settings.IDENTIFIER
-BACKEND_ADDRESS = settings.BACKEND_ADDRESS
-DEFAULT_PORT = settings.DEFAULT_PORT
-DEFAULT_NUM_WORKERS = settings.DEFAULT_NUM_WORKERS
-router = settings.get_models()
-
-
-def process_message(models, data):
+def process_message(data, router, outputs, identifier=''):
     """This is the function that actually processes the data
     Routes data to the appropriate function for each annotation
+
         0 - Tokenize, Preprocess, Normalize, Ngrams
         1 - Sentiment
         2 - POS
@@ -47,13 +34,14 @@ def process_message(models, data):
     # message must have a lang attribute
     if 'lang' not in data:
         return reply
-
     lang = data['lang']
-    models = router[lang]
 
     # check if we are setup to handle this language
     if lang not in router:
         return reply
+
+    models = router[lang]
+    output = outputs[lang]
 
      # check if message has a text property
     if 'text' not in data:
@@ -68,11 +56,11 @@ def process_message(models, data):
     #
     # Pipeline begins
     #
-    property = IDENTIFIER + 'tokenized'
+    property = identifier + 'tokenized'
     tokenizer = models['tokenizer']
 
     text = tokenizer(text)
-    tokens = text.split()
+    tokens = text.split()   # to be used with NER/POS
 
     reply[property] = text
 
@@ -83,173 +71,191 @@ def process_message(models, data):
     text_pp = preprocessor(text)  # this is passed on to the sentiment classif
 
     # text is normalized 
-    property = IDENTIFIER + 'norm'
+    if 'normalizer' in models:
+        property = identifier + 'norm'
+        normalizer = models['normalizer']
+        text_norm = normalizer(text)
+        if 'normalizer' in output:
+            reply[property] = text_norm
 
-    model = models['normalize_model']
-    normalizer = models['normalize']
-
-    text_norm = normalizer(model, text)
-    reply[property] = text_norm
-
-    # then ngrams are generated
-    property = IDENTIFIER + 'ngrams'
-    reply[property] = list(ngrams(text_norm.split(), settings.N))
+        # then ngrams are generated
+        property = identifier + 'ngrams'
+        if 'ngrams' in output:
+            ngramer = models['ngrams']
+            reply[property] = list(ngramer(text_norm.split()))
 
     #
     # 1 - Sentiment
     #
-    property = IDENTIFIER + 'sentiment'
-
-    classifier = models['sentiment']
-    model = models['sentiment_model']
-
-    reply[property] = classifier(model, text_pp)
+    if 'sentiment' in models and 'sentiment' in output:
+        property = identifier + 'sentiment'
+        classifier = models['sentiment']
+        reply[property] = classifier(text_pp)
 
     #
     # 2 - PoS
     #
-    property = IDENTIFIER + 'pos'
-
-    pos_model = models['pos_model']
-    pos_tag = models['pos']
-
-    reply[property] = pos_tag(pos_model, tokens)
+    if 'pos' in models and 'pos' in output:
+        property = identifier + 'pos'
+        pos_tag = models['pos']
+        reply[property] = pos_tag(tokens)
 
     #
     # 3 - NER
     #
-    property = IDENTIFIER + 'ne'
-
-    ner_model = models['ner_model']
-    ner = models['ner']
-
-    reply[property] = ner(ner_model, tokens)
+    if 'ner' in models and 'ner' in output:
+        property = identifier + 'ne'
+        ner = models['ner']
+        reply[property] = ner(tokens)
 
 
     # finally return:
     return reply
 
 
-def worker_task(worker_id):
-    """The multiprocess worker - the function that calls process_message()
+def create_router(config):
+    """Given a config object, returns the router and output dictionaries
     """
-    # setup service
-    socket = zmq.Context().socket(zmq.REQ)
-    socket.identity = u"Worker-{}".format(worker_id).encode("ascii")
-    socket.connect(BACKEND_ADDRESS)
+    router = {}
+    outputs = {}
+    sections = config.sections()
+    langs = [x for x in sections if x not in ['service', 'external', 'codes']]
+    langs = sorted(list(set(langs)))
 
-    # signal to the broker that we are ready
-    socket.send(b'READY')
+    langmap = {k: v for k, v in config.items('codes')}
 
-    # start working (pun intended)
-    while True:
-        address, _, msg = socket.recv_multipart()
-        err_property = IDENTIFIER + 'error'
-        reply = {err_property: 'none'}
+    logging.info('languages in configuration: {}'.format(str(langs)))
 
+
+    stanford_ner = config.get('external', 'stanford_ner')
+    stanford_ner = os.path.abspath(stanford_ner)
+    stanford_pos = config.get('external', 'stanford_pos')
+    stanford_pos = os.path.abspath(stanford_pos)
+
+    for lang in langs:
+        logging.info('loading config for {}'.format(lang))
+        router[lang] = {}
+        outputs[lang] = set()
+
+        # tokenizer
+        tokenizer = config.get(lang, 'tokenizer')
+        if tokenizer == 'twokenizer':
+            router[lang]['tokenizer'] = twokenize.tokenize
+        elif tokenizer == 'apostrophes':
+            router[lang]['tokenizer'] = twokenize.tokenize_apostrophes
+        else:
+            msg = 'No such tokenizer: {}'.format(tokenizer)
+            raise KeyError(msg)
+
+        # preprocessor
+        preprocessor = config.get(lang, 'preprocessor')
+        if preprocessor == 'twokenizer':
+            router[lang]['preprocessor'] = twokenize.preprocess
+        else:
+            msg = 'No such preprocessor: {}'.format(preprocessor)
+            raise KeyError(msg)
+
+        # ngrams
+        n = 3
         try:
-            data = pickle.loads(msg)
-            reply = process_message(router, data)
-        except Exception as e:
-            reply = {err_property: str(e)}
+            n = config.getint(lang, 'ngrams')
+        except:
+            pass
+        router[lang]['ngrams'] = partial(ngrams, n=n)
 
-        reply = pickle.dumps(reply)
-        socket.send_multipart([address, b"", reply])
+        out = False
+        try:
+            out = config.getboolean(lang, 'ngrams_out')
+        except:
+            pass
+        if out:
+            outputs[lang].add('ngrams')
 
+        # normalizer
+        t = 'basic'
+        try:
+            t = config.get(lang, 'normalizer_type')
+        except:
+            pass
+        if t == 'basic':
+            model =  normalize.Normalizer(langmap[lang])
+            normalizer = partial(normalize.normalize, model=model) 
+            router[lang]['normalizer'] = normalizer
+        else:
+            msg = 'No such normalizer: {}'.format(t)
+            raise KeyError(msg)
+        out = False
+        try:
+            out = config.getboolean(lang, 'normalizer_out')
+        except:
+            pass
+        if out:
+            outputs[lang].add('normalizer')
 
-def load_balancer(port=DEFAULT_PORT, n_workers=DEFAULT_NUM_WORKERS):
-    """Load balancer: Starts the workers (in different processes) and
-    balances the work it receives from a client between the different worker
-    processes.
-    """
-    frontend_address = 'tcp://*:' + str(port)
-    backend_address = BACKEND_ADDRESS
+        # sentiment
+        try:
+            sentiment_model = config.get(lang, 'sentiment_model')
+            out = config.getboolean(lang, 'sentiment_out')
+            model = sgd.load(sentiment_model)
+            classifier = partial(sgd.classify, clf=model)
+            if out:
+                router[lang]['sentiment'] = classifier
+                outputs[lang].add('sentiment')
+            else:
+                logging.warning('No sentiment classifier for: {}'.format(lang))
+        except Exception as ex:
+            logging.warning('No sentiment classifier for: {}'.format(lang))
+            logging.exception(ex)
 
-    # Prepare context and sockets
-    context = zmq.Context.instance()
-    frontend = context.socket(zmq.ROUTER)
-    frontend.bind(frontend_address)
-    backend = context.socket(zmq.ROUTER)
-    backend.bind(backend_address)
+        # ner
+        if config.has_option(lang, 'ner_model'):
+            t = 'stanford'
+            model = None
+            try:
+                # Get config variables for NER
+                t = config.get(lang, 'ner_type')
+                ner_model = config.get(lang, 'ner_model')
+                out = config.getboolean(lang, 'ner_out')
 
-    # Start Workers
-    def start(task, *args):
-        """A function that starts background processes"""
-        process = multiprocessing.Process(target=task, args=args)
-        process.daemon = True
-        process.start()
+                # NER model type switch
+                if t == 'stanford':
+                    model = seq.load_ner(stanford_ner, ner_model)
+                    classifier = partial(seq.ner_tag, model=model)
+                else:
+                    msg = 'No such NER type: {}'.format(t)
+                    raise KeyError(msg)
 
-    for i in range(n_workers):
-        start(worker_task, i)
+                # Check output
+                if out and model is not None:
+                    router[lang]['ner'] = classifier
+                    outputs[lang].add('ner')
+                else:
+                    logging.warning('No NER for: {}'.format(lang))
 
-    # Initialize main loop state
-    workers = []
-    poller = zmq.Poller()
+            except Exception as ex:
+                logging.warning('No NER for: {}'.format(lang))
+                logging.exception(ex)
 
-    poller.register(backend, zmq.POLLIN)
-
-    with GracefulInterruptHandler() as h:
-        while True:
-            sockets = dict(poller.poll())
-
-            #
-            # Handle worker activity on the backend
-            #
-            if backend in sockets:
-                request = backend.recv_multipart()
-                worker, _, client = request[:3]
-
-                if not workers:
-                    # Client polling was suspended - unsuspend it:
-                    # (if we got a msg from a worker it means it is availabe
-                    # Poll for clients now that a worker is available
-                    poller.register(frontend, zmq.POLLIN)
-
-                workers.append(worker)
-                if client != b"READY" and len(request) > 3:
-                    # If client reply, send rest back to frontend
-                    _, reply = request[3:]
-                    frontend.send_multipart([client, b"", reply])
-            #
-            # Get next client request, route to last-used worker
-            #
-            if frontend in sockets:
-                client, _, request = frontend.recv_multipart()
-                worker = workers.pop(0)
-                backend.send_multipart([worker, b"", client, b"", request])
-                if not workers:
-                    # Suspend client polling
-                    # Don't poll clients if no workers are available
-                    poller.unregister(frontend)
-
-            if h.interrupted:
-                break
-
-    # Clean up
-    backend.close()
-    frontend.close()
-    context.term()
-
-
-def main():
-    parser = argparse.ArgumentParser(description='Run Annotator.')
-    parser.add_argument('--port', type=int, default=DEFAULT_PORT,
-                        help='read/write to zmq socket at specified port')
-
-    # common options
-    parser.add_argument('--n-jobs', type=int, default=DEFAULT_NUM_WORKERS,
-                        help='number of cores to use in parallel')
-    # Parse
-    args = parser.parse_args()
-
-    # Print PID
-    print(str(os.getpid()))
-
-    # Run forever (or until kill -INT)
-    load_balancer(port=args.port, n_workers=args.n_jobs)
-
-    print('quit')
+        # pos
+        if config.has_option(lang, 'pos_model'):
+            t = 'stanford'
+            model = None
+            try:
+                t = config.get(lang, 'pos_type')
+                pos_model = config.get(lang, 'pos_model')
+                out = config.getboolean(lang, 'pos_out')
+                posmap = config.get(lang, 'pos_map')
+                if t == 'stanford':
+                    model = seq.load_pos(stanford_pos, pos_model, posmap)
+                    classifier = partial(seq.pos_tag, model=model)
+                if out and model is not None:
+                    router[lang]['pos'] = classifier
+                    outputs[lang].add('pos')
+                else:
+                    logging.warning('No POS Tagger for: {}'.format(lang))
+            except Exception as ex:
+                logging.warning('No POS Tagger for: {}'.format(lang))
+                logging.exception(ex)
 
 
-if __name__ == '__main__':
-    main()
+    return router, outputs

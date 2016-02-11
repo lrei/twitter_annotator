@@ -60,11 +60,10 @@ def load_ner(tagger_path, model_path):
     return StanfordNERTagger(model_path, tagger_path, 'utf8')
 
 
-def ner_tag(model, tokens):
+def ner_tag(tokens, model):
     '''Returns is a list of word-tag pairs
     '''
-    if model:
-        return rechunk(model.tag(tokens))
+    return rechunk(model.tag(tokens))
 
 
 def load_pos(tagger_path, model_path, tagset):
@@ -72,6 +71,5 @@ def load_pos(tagger_path, model_path, tagset):
                            tagset)
 
 
-def pos_tag(model, tokens):
-    if model:
-        return model.tag(tokens)
+def pos_tag(tokens, model):
+    return model.tag(tokens)

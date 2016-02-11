@@ -245,7 +245,7 @@ def run(clf, preprocess=False):
             print(clf.predict([line.strip()])[0])
 
 
-def classify(clf, tweet, preprocess=None):
+def classify(tweet, clf, preprocess=None):
     '''Classify a single tweet/line/sentence
     '''
     if preprocess:
@@ -311,8 +311,24 @@ def run_zmp(clf, port, preprocess=False, verbose=False):
             socket.send(str(clf.predict([message])[0]))
 
 
+def plot_cm(cm, labels, destfile='confusion.png'):
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.imshow(cm, interpolation='nearest')
+    plt.title('Confusion Matrix')
+    plt.colorbar()
+    tick_marks = np.arange(len(labels))
+    plt.xticks(tick_marks, labels, rotation=45)
+    plt.yticks(tick_marks, labels)
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.savefig(destfile)
+    plt.close()
+
+
 def evaluate(clf, test_file, undersample=False, calc_semeval_f1=True,
-             verbose=False):
+             export_cm_file=None, verbose=False):
     '''Evaluate classifier on a given test set.
     '''
     if verbose:
@@ -325,12 +341,15 @@ def evaluate(clf, test_file, undersample=False, calc_semeval_f1=True,
 
     Y = np.asarray(test['label'], dtype="|S8")
 
+
+    # labels and their counts
+    count = Counter()
+    count.update(Y)
+    labels = count.keys()
     if verbose:
-        count = Counter()
-        count.update(Y)
         print('num of labels:')
         print(count)
-        del count
+    del count
 
     # predictions
     pred = clf.predict(test['text'])
@@ -358,6 +377,11 @@ def evaluate(clf, test_file, undersample=False, calc_semeval_f1=True,
     # confusion matrix
     cm = confusion_matrix(Y, pred)
     print(cm)
+    
+    if export_cm_file:
+        if verbose:
+            print('Saving confusion matrix to %s' % export_cm_file)
+        plot_cm(cm, labels, export_cm_file)
 
 
 def main():
@@ -381,6 +405,7 @@ def main():
     parser.add_argument('--eval-undersample', action='store_true',
                         default=False,
                         help='Rebalance test set by undersampling')
+    parser.add_argument('--eval-cm', help='path to save confusion matrix to')
 
     '''
     parser.add_argument('--classify', help='path of the test tsv')
@@ -509,7 +534,8 @@ def main():
         if clf is None:
             print('No model to evaluate')
         else:
-            evaluate(clf, args.eval, args.eval_undersample, verbose=verbose)
+            evaluate(clf, args.eval, args.eval_undersample, 
+                     True, args.eval_cm, verbose=verbose)
 
     # Run
     if args.run:

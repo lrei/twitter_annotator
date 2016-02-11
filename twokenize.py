@@ -381,7 +381,7 @@ def tokenize(text, break_apostrophes=False):
     if not text:
         return ''
 
-    text = text.replace(u'&amp;', u'&')
+    text = text.lower().replace(u'&amp;', u'&')
 
     # tokenize
     if break_apostrophes:

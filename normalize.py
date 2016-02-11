@@ -34,5 +34,5 @@ class Normalizer():
         return unidecode(text).lower()
 
 
-def normalize(model, text):
+def normalize(text, model):
     return model.normalize(text)

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import json
 import zmq
-import cPickle as pickle
 
 
 address = 'tcp://localhost:'
@@ -21,14 +21,14 @@ def test_annotator(socket):
         for txt in senti_messages_en:
             print('Sending Request: %s' % (txt,))
             msg = {'text': txt, 'lang': 'en'}
-            socket.send(pickle.dumps(msg))
-            message = pickle.loads(socket.recv())
+            socket.send(json.dumps(msg))
+            message = json.loads(socket.recv())
             print(str(message))
         for txt in senti_messages_es:
             print('Sending Request: %s' % (txt,))
             msg = {'text': txt, 'lang': 'es'}
-            socket.send(pickle.dumps(msg))
-            message = pickle.loads(socket.recv())
+            socket.send(json.dumps(msg))
+            message = json.loads(socket.recv())
             print(str(message))
         break
 
