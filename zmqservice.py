@@ -14,13 +14,20 @@ http://zguide.zeromq.org/py:lbbroker
 
 import logging
 import multiprocessing
-import zmq
+import threading
 import json
-from gracefulinterrupthandler import GracefulInterruptHandler
+import zmq
+from zmq.eventloop import ioloop, zmqstream
+from functools import partial
+
+ioloop.install()
+
+import tornado
+from tornado import web
 
 
 def worker_task_builder(worker_f, backend_address):
-    """Returns the multiprocess worker the function that calls 
+    """Returns the multiprocess worker the function that calls
     process_message()
     """
 
@@ -51,12 +58,11 @@ def worker_task_builder(worker_f, backend_address):
     return worker_task
 
 
-def serve(port, worker_task, n_workers, backend_address):
+def zserve(worker_task, n_workers, backend_address, frontend_address):
     """Load balancer: Starts the workers (in different processes) and
     balances the work it receives from a client between the different worker
     processes.
     """
-    frontend_address = 'tcp://*:' + str(port)
 
     # Prepare context and sockets
     context = zmq.Context.instance()
@@ -81,44 +87,100 @@ def serve(port, worker_task, n_workers, backend_address):
 
     poller.register(backend, zmq.POLLIN)
 
-    with GracefulInterruptHandler() as h:
-        while True:
-            sockets = dict(poller.poll())
+    while True:
+        sockets = dict(poller.poll())
 
-            #
-            # Handle worker activity on the backend
-            #
-            if backend in sockets:
-                request = backend.recv_multipart()
-                worker, _, client = request[:3]
+        #
+        # Handle worker activity on the backend
+        #
+        if backend in sockets:
+            request = backend.recv_multipart()
+            worker, _, client = request[:3]
 
-                if not workers:
-                    # Client polling was suspended - unsuspend it:
-                    # (if we got a msg from a worker it means it is availabe
-                    # Poll for clients now that a worker is available
-                    poller.register(frontend, zmq.POLLIN)
+            if not workers:
+                # Client polling was suspended - unsuspend it:
+                # (if we got a msg from a worker it means it is availabe
+                # Poll for clients now that a worker is available
+                poller.register(frontend, zmq.POLLIN)
 
-                workers.append(worker)
-                if client != b"READY" and len(request) > 3:
-                    # If client reply, send rest back to frontend
-                    _, reply = request[3:]
-                    frontend.send_multipart([client, b"", reply])
-            #
-            # Get next client request, route to last-used worker
-            #
-            if frontend in sockets:
-                client, _, request = frontend.recv_multipart()
-                worker = workers.pop(0)
-                backend.send_multipart([worker, b"", client, b"", request])
-                if not workers:
-                    # Suspend client polling
-                    # Don't poll clients if no workers are available
-                    poller.unregister(frontend)
-
-            if h.interrupted:
-                break
+            workers.append(worker)
+            if client != b"READY" and len(request) > 3:
+                # If client reply, send rest back to frontend
+                _, reply = request[3:]
+                frontend.send_multipart([client, b"", reply])
+        #
+        # Get next client request, route to last-used worker
+        #
+        if frontend in sockets:
+            client, _, request = frontend.recv_multipart()
+            worker = workers.pop(0)
+            backend.send_multipart([worker, b"", client, b"", request])
+            if not workers:
+                # Suspend client polling
+                # Don't poll clients if no workers are available
+                poller.unregister(frontend)
 
     # Clean up
     backend.close()
     frontend.close()
     context.term()
+
+
+class WebHandler(tornado.web.RequestHandler):
+    def initialize(self, address):
+        self.address = address
+
+    @web.asynchronous
+    def get(self):
+        ctx = zmq.Context.instance()
+        s = ctx.socket(zmq.REQ)
+        s.connect(self.address)
+
+        # get the parameters
+        try:
+            lang = self.get_query_argument('lang')
+            text = self.get_query_argument('text')
+            jsdata = json.dumps({'text': text, 'lang': lang})
+
+            # send request to worker
+            s.send(jsdata)
+            self.stream = zmqstream.ZMQStream(s)
+            self.stream.on_recv(self.handle_reply)
+        except Exception as ex:
+            self.write({'error': str(ex)})
+            self.finish()
+
+    def handle_reply(self, msg):
+        # finish web request with worker's reply
+        reply = json.loads(msg[0])
+        self.stream.close()
+        self.write(reply)
+        self.finish()
+
+
+def serve(port, worker_task, n_workers, backend_address, frontend_address):
+
+    zserver_f = partial(zserve, worker_task, n_workers, backend_address,
+                        frontend_address)
+    worker = threading.Thread(target=zserver_f)
+    worker.daemon = True
+    worker.start()
+
+    d = {'address': frontend_address}
+
+    import sys
+
+    def dot():
+        """callback for showing that IOLoop is still responsive while we wait
+        """
+        sys.stdout.write('.')
+        sys.stdout.flush()
+
+    application = tornado.web.Application([(r"/", WebHandler, d)])
+    beat = ioloop.PeriodicCallback(dot, 1000)
+    beat.start()
+    application.listen(port)
+    try:
+        ioloop.IOLoop.instance().start()
+    except KeyboardInterrupt:
+        print('Interrupted')

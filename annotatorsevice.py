@@ -27,6 +27,7 @@ DEFAULT_DIR = '/etc/annotator/'
 DEFAULT_PORT = 1984
 DEFAULT_WORKERS = multiprocessing.cpu_count()
 DEFAULT_BACKEND = 'ipc://annotbackend.ipc'
+DEFAULT_FRONTEND = 'tcp://127.0.0.1:5555'
 DEFAULT_LOG = '/tmp/annotator.log'
 DEFAULT_LOGLEVEL = logging.DEBUG
 
@@ -58,6 +59,7 @@ def init_config():
 
     # Backend address
     config.set('service', 'backend', DEFAULT_BACKEND)
+    config.set('service', 'frontend', DEFAULT_FRONTEND)
 
     # Number of workers
     config.set('service', 'workers', DEFAULT_WORKERS)
@@ -88,12 +90,11 @@ def read_config_file(config, filepath=None):
     confpaths.append(os.path.join(DEFAULT_DIR, DEFAULT_CONFIG))
 
     # Home
-    confpaths.append(os.path.join(os.path.expanduser('~/'), 
+    confpaths.append(os.path.join(os.path.expanduser('~/'),
                                   '.' + DEFAULT_CONFIG))
 
     # current dir
     confpaths.append(os.path.join('./', DEFAULT_CONFIG))
-
 
     # Try each path until one returns
     for fpath in confpaths:
@@ -159,11 +160,12 @@ def main():
     port = config.get('service', 'port')
     n_workers = config.getint('service', 'workers')
     backend = config.get('service', 'backend')
+    frontend = config.get('service', 'frontend')
 
     # Save config
     if args.save_config is not None:
         save_config(config, args.save_config)
-    
+
     # Setup logging
     setup_logging(config)
 
@@ -173,14 +175,14 @@ def main():
     # Setup worker function
     f = partial(process_message, router=router, outputs=outputs)
     worker_task = worker_task_builder(f, backend)
-    
+
     # Print PID
     m = 'Starting Annotator Service with PID: {}'.format(os.getpid())
     logging.info(m)
     print(m)
 
     # Run forever (or until kill -INT)
-    serve(port, worker_task, n_workers, backend)
+    serve(port, worker_task, n_workers, backend, frontend)
 
 
 if __name__ == '__main__':
